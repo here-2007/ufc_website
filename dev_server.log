@@ -1,0 +1,38 @@
+
+> fosser@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.2:3000
+
+ ✓ Starting...
+ ✓ Ready in 2.1s
+ ○ Compiling /api/dashboard/leaderboard ...
+ ✓ Compiled /api/dashboard/leaderboard in 3.1s (298 modules)
+Leaderboard fetch error: Error [PrismaClientInitializationError]:
+Invalid `prisma.user.findMany()` invocation:
+
+
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:10
+   |
+ 9 |   provider = "postgresql"
+10 |   url      = env("DATABASE_URL")
+   |
+
+Validation Error Count: 1
+    at <unknown> (-->  schema.prisma:10)
+    at async GET (src/app/api/dashboard/leaderboard/route.ts:11:28)
+   9 |
+  10 |     // Get all users with either GitHub or LeetCode stats
+> 11 |     const usersWithStats = await prisma.user.findMany({
+     |                            ^
+  12 |       where: {
+  13 |         OR: [
+  14 |           { githubStats: { isNot: null } }, {
+  clientVersion: '6.14.0',
+  errorCode: undefined,
+  retryable: undefined
+}
+ GET /api/dashboard/leaderboard 500 in 3753ms
