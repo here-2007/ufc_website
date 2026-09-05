@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { leetcodeService } from '@/lib/leetcode';
+import { prisma } from '@/server/db/prisma';
+import { leetcodeService } from '@/server/integrations/leetcode.service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     // Transform stats for response
     let transformedStats = usersWithStats.map(user => ({
       id: user.id,
-      username: user.leetcodeUsername || user.email.split('@')[0],
+      username: user.leetcodeUsername || user.email?.split('@')[0] || 'leetcode-user',
       name: user.name || 'Unknown User',
       avatar: user.avatar || 'https://github.com/github.png',
       stats: {

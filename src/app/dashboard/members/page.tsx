@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Users, Github, MapPin, Calendar, Search } from "lucide-react";
+import { Users, MapPin, Calendar, Search } from "lucide-react";
 import AdvancedPagination from '@/components/ui/advanced-pagination';
 import GitCommandsLoader from '@/components/ui/git-commands-loader';
+import { GithubIcon } from '@/components/ui/social-icons';
 
 interface Member {
   id: string;
@@ -139,7 +140,7 @@ export default function MembersPage() {
                 <h3 className="text-lg font-bold text-white">{member.name || 'Anonymous'}</h3>
                 {member.githubUsername && (
                   <p className="text-sm text-gray-400 flex items-center justify-center">
-                    <Github className="w-3 h-3 mr-1" />
+                    <GithubIcon className="w-3 h-3 mr-1" />
                     @{member.githubUsername}
                   </p>
                 )}

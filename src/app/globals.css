@@ -1,7 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@300;400;600&display=swap');
 @import "tailwindcss";
 @import 'locomotive-scroll/dist/locomotive-scroll.css';
-/* Add to globals.css */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@300;400;600&display=swap');
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));

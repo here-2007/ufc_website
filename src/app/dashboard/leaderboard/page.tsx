@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Trophy, Medal, Award, TrendingUp, GitCommit, GitPullRequest, Star, BarChart3, Crown, Github } from "lucide-react";
+import { Trophy, Medal, Award, TrendingUp, GitCommit, GitPullRequest, Star, BarChart3, Crown } from "lucide-react";
 import GitCommandsLoader from '@/components/ui/git-commands-loader';
+import { GithubIcon } from '@/components/ui/social-icons';
 
 interface LeaderboardUser {
   id: string;
@@ -56,6 +57,19 @@ export default function LeaderboardPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const stream = new EventSource('/api/stream/dashboard');
+    const handleVersions = (event: MessageEvent<string>) => {
+      const payload = JSON.parse(event.data) as { versions?: { leaderboard?: number } };
+      if (payload.versions?.leaderboard !== undefined) {
+        void fetchLeaderboard();
+      }
+    };
+
+    stream.addEventListener('versions', handleVersions);
+    return () => stream.close();
+  }, []);
 
   // Sort users based on selected filter (client-side)
   const users = React.useMemo(() => {
@@ -164,7 +178,7 @@ export default function LeaderboardPage() {
                   : 'bg-black/30 text-gray-400 hover:text-[#0B874F] hover:bg-[#0B874F]/10'
               }`}
             >
-              <Github className="w-4 h-4 inline mr-2" />
+              <GithubIcon className="w-4 h-4 inline mr-2" />
               GitHub
             </button>
             <button

@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/server/db/prisma';
+import { getSession } from '@/server/auth/session';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth-token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const session = await getSession(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
     // Check if user has admin access
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: session.userId },
       select: { role: true }
     });
 
-    if (!user || !['ADMIN', 'MAINTAINER', 'MODERATOR'].includes(user.role.toUpperCase())) {
+    if (!user || !['ADMIN', 'MAINTAINER'].includes(user.role.toUpperCase())) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

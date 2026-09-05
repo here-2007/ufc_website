@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
-import { leetcodeService } from '@/lib/leetcode';
+import { invalidateCache } from '@/server/cache/cache';
+import { prisma } from '@/server/db/prisma';
+import { leetcodeService } from '@/server/integrations/leetcode.service';
+import { getSession } from '@/server/auth/session';
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('token')?.value;
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const session = await getSession(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: session.userId },
       select: { id: true, leetcodeUsername: true },
     });
 
@@ -30,6 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Sync LeetCode stats
     const result = await leetcodeService.syncUserStats(user.id, user.leetcodeUsername);
+    await invalidateCache('members', 'leaderboard');
 
     return NextResponse.json({
       success: true,
@@ -47,20 +41,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('token')?.value;
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const session = await getSession(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
     // Get user's last sync time
     const leetcodeStats = await prisma.leetCodeStats.findUnique({
-      where: { userId: decoded.userId },
+      where: { userId: session.userId },
       select: { lastSynced: true },
     });
 

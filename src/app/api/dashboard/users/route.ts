@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/server/db/prisma';
+import { getSession } from '@/server/auth/session';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth-token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    const session = await getSession(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Fetch all users for collaborator selection
     const users = await prisma.user.findMany({

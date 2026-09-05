@@ -1,98 +1,72 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import type { NextRequest } from 'next/server';
+import { getOrSetCached } from '@/server/cache/cache';
+import { prisma } from '@/server/db/prisma';
+import { json, withApiErrorHandling } from '@/server/http/api';
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const sortBy = searchParams.get('sortBy') || 'totalPoints';
-    const limit = parseInt(searchParams.get('limit') || '50');
-
-    // Get all users with either GitHub or LeetCode stats
-    const usersWithStats = await prisma.user.findMany({
+export const GET = withApiErrorHandling(async (request: NextRequest) => {
+  const { searchParams } = new URL(request.url);
+  const sortBy = searchParams.get('sortBy') || 'totalPoints';
+  const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 50, 1), 100);
+  const payload = await getOrSetCached('leaderboard', `${sortBy}:${limit}`, 60, async () => {
+    const users = await prisma.user.findMany({
       where: {
         OR: [
           { githubStats: { isNot: null } },
-          { leetcodeStats: { isNot: null } }
-        ]
+          { leetcodeStats: { isNot: null } },
+        ],
       },
-      include: {
-        githubStats: true,
-        leetcodeStats: true
-      }
+      include: { githubStats: true, leetcodeStats: true },
     });
 
-    // Calculate points for each user
-    const usersWithRankings = usersWithStats
-      .map(user => {
-        const githubPoints = user.githubStats 
-          ? (user.githubStats.commits * 1 + user.githubStats.pullRequests * 5 + user.githubStats.issues * 2)
-          : 0;
-        
-        const leetcodePoints = user.leetcodeStats
-          ? (user.leetcodeStats.easySolved * 2 + user.leetcodeStats.mediumSolved * 4 + user.leetcodeStats.hardSolved * 6)
-          : 0;
+    const rankedUsers = users
+      .map((user) => {
+        const githubPoints = (user.githubStats?.commits || 0)
+          + ((user.githubStats?.pullRequests || 0) * 5)
+          + ((user.githubStats?.issues || 0) * 2);
+        const leetcodePoints = ((user.leetcodeStats?.easySolved || 0) * 2)
+          + ((user.leetcodeStats?.mediumSolved || 0) * 4)
+          + ((user.leetcodeStats?.hardSolved || 0) * 6);
 
-        const totalPoints = githubPoints + leetcodePoints;
-
-        return { 
-          ...user, 
-          githubPoints,
-          leetcodePoints,
-          totalPoints 
-        };
+        return { user, githubPoints, leetcodePoints, totalPoints: githubPoints + leetcodePoints };
       })
-      .filter(user => user.totalPoints > 0)
-      .sort((a, b) => {
-        switch (sortBy) {
-          case 'commits':
-            return (b.githubStats?.commits || 0) - (a.githubStats?.commits || 0);
-          case 'pullRequests':
-            return (b.githubStats?.pullRequests || 0) - (a.githubStats?.pullRequests || 0);
-          case 'leetcode':
-            return b.leetcodePoints - a.leetcodePoints;
-          case 'github':
-            return b.githubPoints - a.githubPoints;
-          case 'totalPoints':
-          default:
-            return b.totalPoints - a.totalPoints;
-        }
-      })
-      .map((user, index) => ({
-        id: user.id,
-        name: user.name || user.email,
-        githubUsername: user.githubUsername,
-        leetcodeUsername: user.leetcodeUsername,
-        avatar: user.avatar,
-        stats: {
-          commits: user.githubStats?.commits || 0,
-          pullRequests: user.githubStats?.pullRequests || 0,
-          issues: user.githubStats?.issues || 0,
-          contributions: user.githubStats?.contributions || 0
-        },
-        leetcodeStats: user.leetcodeStats ? {
-          totalSolved: user.leetcodeStats.totalSolved,
-          easySolved: user.leetcodeStats.easySolved,
-          mediumSolved: user.leetcodeStats.mediumSolved,
-          hardSolved: user.leetcodeStats.hardSolved
-        } : null,
-        githubPoints: user.githubPoints,
-        leetcodePoints: user.leetcodePoints,
-        points: user.totalPoints,
-        rank: index + 1
-      }));
+      .filter((entry) => entry.totalPoints > 0)
+      .sort((left, right) => {
+        if (sortBy === 'commits') return (right.user.githubStats?.commits || 0) - (left.user.githubStats?.commits || 0);
+        if (sortBy === 'pullRequests') return (right.user.githubStats?.pullRequests || 0) - (left.user.githubStats?.pullRequests || 0);
+        if (sortBy === 'leetcode') return right.leetcodePoints - left.leetcodePoints;
+        if (sortBy === 'github') return right.githubPoints - left.githubPoints;
+        return right.totalPoints - left.totalPoints;
+      });
 
-    // Apply limit after ranking
-    const leaderboardUsers = usersWithRankings.slice(0, limit);
-
-    return NextResponse.json({
+    return {
       success: true,
-      users: leaderboardUsers,
-      total: usersWithRankings.length,
-      sortBy
-    });
+      users: rankedUsers.slice(0, limit).map((entry, index) => ({
+        id: entry.user.id,
+        name: entry.user.name || entry.user.githubUsername || 'Member',
+        githubUsername: entry.user.githubUsername,
+        leetcodeUsername: entry.user.leetcodeUsername,
+        avatar: entry.user.avatar,
+        stats: {
+          commits: entry.user.githubStats?.commits || 0,
+          pullRequests: entry.user.githubStats?.pullRequests || 0,
+          issues: entry.user.githubStats?.issues || 0,
+          contributions: entry.user.githubStats?.contributions || 0,
+        },
+        leetcodeStats: entry.user.leetcodeStats ? {
+          totalSolved: entry.user.leetcodeStats.totalSolved,
+          easySolved: entry.user.leetcodeStats.easySolved,
+          mediumSolved: entry.user.leetcodeStats.mediumSolved,
+          hardSolved: entry.user.leetcodeStats.hardSolved,
+        } : null,
+        githubPoints: entry.githubPoints,
+        leetcodePoints: entry.leetcodePoints,
+        points: entry.totalPoints,
+        rank: index + 1,
+      })),
+      total: rankedUsers.length,
+      sortBy,
+    };
+  });
 
-  } catch (error) {
-    console.error('Leaderboard fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 });
-  }
-}
+  return json(payload);
+});

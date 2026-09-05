@@ -1,41 +1,26 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { getToken } from 'next-auth/jwt';
 
 export async function middleware(request: NextRequest) {
+  const session = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
   if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    const token = request.cookies.get('auth-token')?.value;
-
-    if (!token) {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-
-    try {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-      await jwtVerify(token, secret);
-      return NextResponse.next();
-    } catch (error) {
-      console.log('JWT verification failed:', error);
+    if (!session) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
 
-  if (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup')) {
-    const token = request.cookies.get('auth-token')?.value;
-
-    if (token) {
-      try {
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-        await jwtVerify(token, secret);
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      } catch (error) {
-      }
-    }
+  if (request.nextUrl.pathname.startsWith('/login') && session) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login', '/signup']
+  matcher: ['/dashboard/:path*', '/login']
 };

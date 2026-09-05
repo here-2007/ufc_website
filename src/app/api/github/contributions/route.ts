@@ -1,90 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { requireSession } from '@/server/auth/session';
+import { prisma } from '@/server/db/prisma';
+import { json, withApiErrorHandling } from '@/server/http/api';
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username');
+export const GET = withApiErrorHandling(async (request: NextRequest) => {
+  const session = await requireSession(request);
+  const githubStats = await prisma.gitHubStats.findUnique({
+    where: { userId: session.userId },
+    select: { contributionCalendar: true, lastSynced: true },
+  });
+  const contributions = Array.isArray(githubStats?.contributionCalendar)
+    ? githubStats.contributionCalendar
+    : [];
 
-    if (!username) {
-      return NextResponse.json(
-        { error: 'Username is required' },
-        { status: 400 }
-      );
-    }
+  const totalContributions = contributions.reduce<number>((total, day) => {
+    const count = typeof day === 'object' && day !== null && !Array.isArray(day) && typeof day.count === 'number'
+      ? day.count
+      : 0;
+    return total + count;
+  }, 0);
 
-    // Fetch contribution data from GitHub GraphQL API
-    const query = `
-      query($username: String!) {
-        user(login: $username) {
-          contributionsCollection {
-            contributionCalendar {
-              totalContributions
-              weeks {
-                contributionDays {
-                  contributionCount
-                  date
-                }
-              }
-            }
-          }
-        }
-      }
-    `;
-
-    const response = await fetch('https://api.github.com/graphql', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        variables: { username }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch GitHub contributions');
-    }
-
-    const data = await response.json();
-
-    if (data.errors) {
-      console.error('GitHub GraphQL errors:', data.errors);
-      return NextResponse.json(
-        { error: 'Failed to fetch contributions from GitHub' },
-        { status: 500 }
-      );
-    }
-
-    // Transform the data into a flat array
-    const contributions = data.data?.user?.contributionsCollection?.contributionCalendar?.weeks
-      ?.flatMap((week: any) => 
-        week.contributionDays.map((day: any) => ({
-          date: day.date,
-          count: day.contributionCount,
-          level: getContributionLevel(day.contributionCount)
-        }))
-      ) || [];
-
-    return NextResponse.json({
-      success: true,
-      contributions,
-      totalContributions: data.data?.user?.contributionsCollection?.contributionCalendar?.totalContributions || 0
-    });
-  } catch (error) {
-    console.error('GitHub contributions error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch GitHub contributions' },
-      { status: 500 }
-    );
-  }
-}
-
-function getContributionLevel(count: number): number {
-  if (count === 0) return 0;
-  if (count < 3) return 1;
-  if (count < 6) return 2;
-  if (count < 10) return 3;
-  return 4;
-}
+  return json({
+    success: true,
+    contributions,
+    totalContributions,
+    lastSynced: githubStats?.lastSynced || null,
+  });
+});

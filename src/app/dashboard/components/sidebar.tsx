@@ -2,20 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
-import { useEffect, useState } from "react";
+import { useAuth } from "@/features/auth/auth-provider";
 import { 
   Home, 
   Trophy, 
-  User, 
   Settings, 
   Calendar,
-  GitBranch,
   Users,
   Activity,
-  Shield,
-  Target,
-  Globe
+  Shield
 } from "lucide-react";
 
 type NavigationItem = {
@@ -23,51 +18,24 @@ type NavigationItem = {
   href: string;
   icon: any;
   roles: string[];
-  hasNotification?: boolean;
 };
 
 const navigation: NavigationItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home, roles: [] },
-  { name: "Bootcamps", href: "/dashboard/bootcamps", icon: Target, roles: [], hasNotification: true },
   { name: "Leaderboard", href: "/dashboard/leaderboard", icon: Trophy, roles: [] },
-  { name: "Projects", href: "/dashboard/projects", icon: GitBranch, roles: [] },
-  { name: "Events", href: "/dashboard/events", icon: Calendar, roles: ['ADMIN', 'MAINTAINER', 'MODERATOR'] },
+  { name: "Events", href: "/dashboard/events", icon: Calendar, roles: ['ADMIN', 'MAINTAINER'] },
   { name: "Members", href: "/dashboard/members", icon: Users, roles: [] },
   { name: "Activity", href: "/dashboard/activity", icon: Activity, roles: [] },
-  { name: "Profile", href: "/dashboard/profile", icon: User, roles: [] },
-  { name: "Portfolio", href: "/dashboard/portfolio-settings", icon: Globe, roles: [] },
   { name: "Settings", href: "/dashboard/settings", icon: Settings, roles: [] },
 ];
 
 const adminNavigation: NavigationItem[] = [
-  { name: "Admin Panel", href: "/dashboard/admin", icon: Shield, roles: ['ADMIN', 'MAINTAINER', 'MODERATOR'] },
-  { name: "Bootcamps", href: "/dashboard/admin/bootcamps", icon: Trophy, roles: ['ADMIN', 'MAINTAINER', 'MODERATOR'] },
+  { name: "Admin Panel", href: "/dashboard/admin", icon: Shield, roles: ['ADMIN', 'MAINTAINER'] },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const [hasActiveBootcamp, setHasActiveBootcamp] = useState(false);
-
-  useEffect(() => {
-    // Check for active bootcamp
-    const checkActiveBootcamp = async () => {
-      try {
-        const response = await fetch('/api/bootcamps/active');
-        if (response.ok) {
-          const data = await response.json();
-          setHasActiveBootcamp(!!data.bootcamp);
-        }
-      } catch (error) {
-        console.error('Error checking active bootcamp:', error);
-      }
-    };
-
-    checkActiveBootcamp();
-    // Check every minute
-    const interval = setInterval(checkActiveBootcamp, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="fixed left-0 top-0 h-full w-64 bg-black/80 backdrop-blur-sm border-r border-[#0B874F]/30 z-30">
@@ -89,7 +57,6 @@ export default function Sidebar() {
           
           const isActive = pathname === item.href;
           const Icon = item.icon;
-          const showNotification = item.hasNotification && hasActiveBootcamp;
           
           return (
             <Link
@@ -104,10 +71,7 @@ export default function Sidebar() {
             >
               <Icon className="w-5 h-5 mr-3" />
               <span className="font-medium">{item.name}</span>
-              {showNotification && (
-                <div className="ml-auto w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              )}
-              {isActive && !showNotification && (
+              {isActive && (
                 <div className="ml-auto w-2 h-2 bg-[#0B874F] rounded-full"></div>
               )}
             </Link>
@@ -116,7 +80,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Admin Navigation */}
-      {user?.role && ['ADMIN', 'MAINTAINER', 'MODERATOR'].includes(user.role.toUpperCase()) && (
+      {user?.role && ['ADMIN', 'MAINTAINER'].includes(user.role.toUpperCase()) && (
         <>
           <div className="mx-4 border-t border-[#0B874F]/30 my-2"></div>
           <nav className="p-4 space-y-2">

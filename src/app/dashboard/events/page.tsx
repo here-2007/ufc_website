@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/features/auth/auth-provider";
 import { Calendar, MapPin, Users, Clock, Plus, Settings, CheckCircle, X } from "lucide-react";
 
 interface Event {
@@ -50,10 +50,9 @@ export default function EventsPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [eventToReject, setEventToReject] = useState<string | null>(null);
 
-  // Check if user can create events (ADMIN, MAINTAINER, MODERATOR)
-  const canCreateEvent = user?.role ? ['ADMIN', 'MAINTAINER', 'MODERATOR'].includes(user.role.toUpperCase()) : false;
+  const canCreateEvent = user?.role ? ['ADMIN', 'MAINTAINER'].includes(user.role.toUpperCase()) : false;
   // Check if user can approve/reject events
-  const canManageEvents = user?.role ? ['ADMIN', 'MAINTAINER', 'MODERATOR'].includes(user.role.toUpperCase()) : false;
+  const canManageEvents = user?.role ? ['ADMIN', 'MAINTAINER'].includes(user.role.toUpperCase()) : false;
 
   useEffect(() => {
     fetchEvents();

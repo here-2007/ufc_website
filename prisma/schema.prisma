@@ -7,16 +7,17 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
   id              String   @id @default(cuid())
-  email           String   @unique
+  email           String?  @unique
   name            String?
-  password        String
-  role            Role     @default(MEMBER)
-  githubUsername  String?
+  role            Role     @default(MAINTAINER)
+  githubId        String?  @unique
+  githubUsername  String?  @unique
+  githubTokenCiphertext String?
+  githubTokenUpdatedAt  DateTime?
   leetcodeUsername String?
   location        String?
   bio             String?
@@ -24,100 +25,18 @@ model User {
   joinedAt        DateTime @default(now())
   lastActive      DateTime @default(now())
   
-  // Password reset
-  resetToken      String?
-  resetTokenExpiry DateTime?
-  
-  // Gamification
-  level           Int      @default(1)
-  experience      Int      @default(0)
-  streak          Int      @default(0)
-  lastStreakDate  DateTime?
-  
-  // Portfolio fields
-  portfolioSlug   String?  @unique
-  portfolioPublic Boolean  @default(false)
-  tagline         String?
-  techStack       Json?    // Array of technologies
-  resumeUrl       String?
-  websiteUrl      String?
-  linkedinUrl     String?
-  twitterUrl      String?
-  portfolioTheme  String?  @default("default")
-  
-  // Extended portfolio customization
-  portfolioTitle  String?  // Custom title instead of name
-  portfolioSubtitle String? // Subtitle/role
-  showEmail       Boolean  @default(false)
-  showLocation    Boolean  @default(true)
-  showJoinDate    Boolean  @default(true)
-  showGithubStats Boolean  @default(true)
-  showLeetcodeStats Boolean @default(true)
-  showProjects    Boolean  @default(true)
-  showBootcamps   Boolean  @default(true)
-  showAchievements Boolean @default(true)
-  customSections  Json?    // Custom sections data
-  
   // Relations
-  projects        ProjectMember[]
   events          EventAttendee[]
   activities      Activity[]
   githubStats     GitHubStats?
   leetcodeStats   LeetCodeStats?
-  createdProjects Project[] @relation("ProjectCreator")
-  approvedProjects Project[] @relation("ProjectApprover")
   createdEvents   Event[]   @relation("EventCreator")
   approvedEvents  Event[]   @relation("EventApprover")
-  achievements    UserAchievement[]
-  badges          UserBadge[]
-  notifications   Notification[]
-  createdBootcamps Bootcamp[] @relation("BootcampCreator")
-  bootcampParticipations BootcampParticipant[]
   
   @@map("users")
   @@index([joinedAt])
   @@index([lastActive])
-}
-
-model Project {
-  id            String        @id @default(cuid())
-  name          String
-  description   String
-  repoUrl       String?
-  language      String
-  status        ProjectStatus @default(PLANNING)
-  approvalStatus ApprovalStatus @default(PENDING)
-  rejectionReason String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  approvedAt    DateTime?
-  approvedById  String?
-  
-  // Relations
-  creatorId     String
-  creator       User            @relation("ProjectCreator", fields: [creatorId], references: [id])
-  approvedBy    User?           @relation("ProjectApprover", fields: [approvedById], references: [id])
-  members       ProjectMember[]
-  activities    Activity[]
-  
-  @@map("projects")
-}
-
-model ProjectMember {
-  id        String @id @default(cuid())
-  userId    String
-  projectId String
-  role      String @default("contributor")
-  joinedAt  DateTime @default(now())
-  
-  // Relations
-  user      User    @relation(fields: [userId], references: [id])
-  project   Project @relation(fields: [projectId], references: [id])
-  
-  @@unique([userId, projectId])
-  @@map("project_members")
-  @@index([userId])
-  @@index([projectId])
+  @@index([role, joinedAt])
 }
 
 model Event {
@@ -144,6 +63,8 @@ model Event {
   activities      Activity[]
   
   @@map("events")
+  @@index([approvalStatus, date])
+  @@index([creatorId, createdAt])
 }
 
 model EventAttendee {
@@ -160,6 +81,7 @@ model EventAttendee {
   @@map("event_attendees")
   @@index([userId])
   @@index([eventId])
+  @@index([eventId, joinedAt])
 }
 
 model GitHubStats {
@@ -172,6 +94,7 @@ model GitHubStats {
   followers     Int      @default(0)
   contributions Int      @default(0)
   languages     Json?    // Store as JSON: {"JavaScript": 45, "TypeScript": 30}
+  contributionCalendar Json?
   lastSynced    DateTime @default(now())
   
   // Relations
@@ -179,6 +102,8 @@ model GitHubStats {
   
   @@map("github_stats")
   @@index([lastSynced])
+  @@index([contributions])
+  @@index([commits])
 }
 
 model LeetCodeStats {
@@ -199,6 +124,7 @@ model LeetCodeStats {
   
   @@map("leetcode_stats")
   @@index([lastSynced])
+  @@index([totalSolved])
 }
 
 model Activity {
@@ -207,36 +133,26 @@ model Activity {
   userId      String
   description String
   metadata    Json?        // Store additional data as JSON
+  sourceKey   String?      @unique
   createdAt   DateTime     @default(now())
   
-  // Optional relations
-  projectId   String?
   eventId     String?
   
   // Relations
   user        User     @relation(fields: [userId], references: [id])
-  project     Project? @relation(fields: [projectId], references: [id])
   event       Event?   @relation(fields: [eventId], references: [id])
   
   @@map("activities")
   @@index([userId, createdAt])
   @@index([createdAt])
+  @@index([createdAt, id])
+  @@index([type, createdAt])
 }
 
 // Enums
 enum Role {
   ADMIN
   MAINTAINER
-  MODERATOR
-  MEMBER
-  VOLUNTEER
-}
-
-enum ProjectStatus {
-  PLANNING
-  ACTIVE
-  COMPLETED
-  ARCHIVED
 }
 
 enum EventType {
@@ -259,14 +175,8 @@ enum ActivityType {
   ISSUE
   EVENT_JOIN
   EVENT_CREATE
-  PROJECT_JOIN
-  PROJECT_CREATE
   MEMBER_JOIN
-  ACHIEVEMENT
-  PROJECT_PROPOSAL
   EVENT_PROPOSAL
-  PROJECT_APPROVED
-  PROJECT_REJECTED
   EVENT_APPROVED
   EVENT_REJECTED
   LEETCODE_EASY
@@ -278,212 +188,4 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
-}
-// Gamification Models
-model Achievement {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String
-  icon        String
-  category    AchievementCategory
-  points      Int      @default(0)
-  requirement Json     // Store requirement criteria as JSON
-  createdAt   DateTime @default(now())
-  
-  // Relations
-  users       UserAchievement[]
-  
-  @@map("achievements")
-}
-
-model UserAchievement {
-  id            String      @id @default(cuid())
-  userId        String
-  achievementId String
-  unlockedAt    DateTime    @default(now())
-  progress      Json?       // Store progress data as JSON
-  
-  // Relations
-  user          User        @relation(fields: [userId], references: [id])
-  achievement   Achievement @relation(fields: [achievementId], references: [id])
-  
-  @@unique([userId, achievementId])
-  @@map("user_achievements")
-}
-
-model Badge {
-  id          String     @id @default(cuid())
-  name        String     @unique
-  description String
-  icon        String
-  color       String
-  rarity      BadgeRarity @default(COMMON)
-  createdAt   DateTime   @default(now())
-  
-  // Relations
-  users       UserBadge[]
-  
-  @@map("badges")
-}
-
-model UserBadge {
-  id       String   @id @default(cuid())
-  userId   String
-  badgeId  String
-  earnedAt DateTime @default(now())
-  
-  // Relations
-  user     User  @relation(fields: [userId], references: [id])
-  badge    Badge @relation(fields: [badgeId], references: [id])
-  
-  @@unique([userId, badgeId])
-  @@map("user_badges")
-}
-
-model Leaderboard {
-  id        String          @id @default(cuid())
-  type      LeaderboardType
-  period    String          // "daily", "weekly", "monthly", "all-time"
-  data      Json            // Store leaderboard data as JSON
-  updatedAt DateTime        @updatedAt
-  
-  @@unique([type, period])
-  @@map("leaderboards")
-}
-
-model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  type      NotificationType
-  title     String
-  message   String
-  data      Json?            // Additional notification data
-  read      Boolean          @default(false)
-  createdAt DateTime         @default(now())
-  
-  // Relations
-  user      User @relation(fields: [userId], references: [id])
-  
-  @@map("notifications")
-  @@index([userId, createdAt])
-}
-
-// Additional Enums
-enum AchievementCategory {
-  COMMITS
-  PULL_REQUESTS
-  ISSUES
-  PROJECTS
-  EVENTS
-  SOCIAL
-  STREAK
-  SPECIAL
-  LEETCODE
-}
-
-enum BadgeRarity {
-  COMMON
-  UNCOMMON
-  RARE
-  EPIC
-  LEGENDARY
-}
-
-enum LeaderboardType {
-  COMMITS
-  PULL_REQUESTS
-  ISSUES
-  CONTRIBUTIONS
-  EXPERIENCE
-  STREAK
-  LEETCODE_PROBLEMS
-  TOTAL_POINTS
-}
-
-enum NotificationType {
-  ACHIEVEMENT
-  BADGE
-  LEVEL_UP
-  EVENT_REMINDER
-  PROJECT_UPDATE
-  MENTION
-  SYSTEM
-}
-
-// Bootcamp Competition Models
-model Bootcamp {
-  id              String          @id @default(cuid())
-  name            String
-  description     String
-  type            BootcampType
-  status          BootcampStatus  @default(UPCOMING)
-  startDate       DateTime
-  endDate         DateTime
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  createdById     String
-  
-  // Relations
-  creator         User            @relation("BootcampCreator", fields: [createdById], references: [id])
-  participants    BootcampParticipant[]
-  snapshots       BootcampSnapshot[]
-  
-  @@map("bootcamps")
-  @@index([status, startDate])
-  @@index([endDate])
-}
-
-model BootcampParticipant {
-  id              String   @id @default(cuid())
-  bootcampId      String
-  userId          String
-  registeredAt    DateTime @default(now())
-  
-  // Baseline stats (at registration)
-  baselineStats   Json
-  
-  // Current progress
-  currentStats    Json?
-  progressStats   Json?
-  
-  // Final results
-  finalRank       Int?
-  finalPoints     Int      @default(0)
-  
-  // Relations
-  bootcamp        Bootcamp @relation(fields: [bootcampId], references: [id], onDelete: Cascade)
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@unique([bootcampId, userId])
-  @@map("bootcamp_participants")
-  @@index([bootcampId, finalPoints])
-}
-
-model BootcampSnapshot {
-  id              String   @id @default(cuid())
-  bootcampId      String
-  participantId   String
-  stats           Json
-  points          Int      @default(0)
-  rank            Int?
-  capturedAt      DateTime @default(now())
-  
-  // Relations
-  bootcamp        Bootcamp @relation(fields: [bootcampId], references: [id], onDelete: Cascade)
-  
-  @@map("bootcamp_snapshots")
-  @@index([bootcampId, capturedAt])
-  @@index([participantId, capturedAt])
-}
-
-enum BootcampType {
-  LEETCODE
-  GITHUB
-}
-
-enum BootcampStatus {
-  UPCOMING
-  ACTIVE
-  COMPLETED
-  CANCELLED
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/server/db/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,11 +38,6 @@ export async function GET(request: NextRequest) {
             githubUsername: true
           }
         },
-        project: {
-          select: {
-            name: true
-          }
-        },
         event: {
           select: {
             title: true
@@ -57,7 +52,7 @@ export async function GET(request: NextRequest) {
       type: activity.type.toLowerCase(),
       message: activity.description,
       repo: activity.metadata ? (activity.metadata as any).repo : null,
-      target: activity.project?.name || activity.event?.title || 'System',
+      target: activity.event?.title || 'System',
       time: timeAgo(activity.createdAt),
       timestamp: activity.createdAt.toISOString(),
       user: {

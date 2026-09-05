@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { invalidateCache } from '@/server/cache/cache';
+import { prisma } from '@/server/db/prisma';
+import { getSession } from '@/server/auth/session';
 
 export async function POST(
   request: NextRequest,
@@ -10,19 +11,9 @@ export async function POST(
     const params = await context.params;
     const { eventId } = params;
 
-    // Get user from JWT token
-    const token = request.cookies.get('auth-token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    let userId: string;
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
-      userId = decoded.userId;
-    } catch (error) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const session = await getSession(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userId = session.userId;
 
     // Check if event exists and is upcoming
     const event = await prisma.event.findUnique({
@@ -84,6 +75,8 @@ export async function POST(
         }
       }
     });
+
+    await invalidateCache('activity-feed');
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/features/auth/auth-provider";
 import { useRouter } from "next/navigation";
 import { useEffect, ReactNode, Suspense } from "react";
 import Sidebar from "./components/sidebar";
@@ -17,7 +17,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         try {
           await Promise.all([
             router.prefetch('/dashboard/leaderboard'),
-            router.prefetch('/dashboard/projects'),
             router.prefetch('/dashboard/events'),
             router.prefetch('/dashboard/members'),
           ]);

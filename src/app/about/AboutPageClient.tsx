@@ -3,7 +3,7 @@
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google"
 import Link from "next/link"
 import { Suspense } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/shared/utils"
 import { Home } from "lucide-react"
 // import FlowLines from "./components/flow-lines"
 import PhilosophyReveal from "./components/philosophy-reveal"

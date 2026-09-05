@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { invalidateCache } from '@/server/cache/cache';
+import { prisma } from '@/server/db/prisma';
+import { getSession } from '@/server/auth/session';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get user from JWT token for registration status
-    const token = request.cookies.get('auth-token')?.value;
-    let userId: string | null = null;
-    
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
-        userId = decoded.userId;
-      } catch (error) {
-        // Continue without user ID if token is invalid
-      }
-    }
+    const session = await getSession(request);
+    const userId = session?.userId ?? null;
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -77,24 +68,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user from JWT token
-    const token = request.cookies.get('auth-token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    let userId: string;
-    let userRole: string;
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
-      userId = decoded.userId;
-      userRole = decoded.role;
-    } catch (error) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const session = await getSession(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userId = session.userId;
+    const userRole = session.role;
 
     // Check if user has permission to create events
-    const allowedRoles = ['ADMIN', 'MAINTAINER', 'MODERATOR'];
+    const allowedRoles = ['ADMIN', 'MAINTAINER'];
     if (!allowedRoles.includes(userRole?.toUpperCase())) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
@@ -148,6 +128,8 @@ export async function POST(request: NextRequest) {
         }
       }
     });
+
+    await invalidateCache('activity-feed');
 
     return NextResponse.json({
       success: true,

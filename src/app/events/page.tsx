@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Calendar, ExternalLink, ArrowRight, ChevronDown, X } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
-import PageTransition from "../Components/page-transition"
+import PageTransition from "@/components/motion/page-transition"
 import { GitGudSVG } from "../../components/event-svgs/GitGudSVG"
 import Image from "next/image"
 

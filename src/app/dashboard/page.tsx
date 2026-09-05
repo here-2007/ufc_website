@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/features/auth/auth-provider";
 import { 
   GitCommit, 
   GitPullRequest, 
@@ -9,15 +9,14 @@ import {
   Calendar,
   Star,
   Activity,
-  Trophy,
-  Github
+  Trophy
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import AdvancedPagination from '@/components/ui/advanced-pagination';
 import GitCommandsLoader from '@/components/ui/git-commands-loader';
-import ActiveBootcampBanner from '@/components/bootcamp/ActiveBootcampBanner';
 import GitHubHeatmap from '@/components/ui/github-heatmap';
 import LeetCodeHeatmap from '@/components/ui/leetcode-heatmap';
+import { GithubIcon } from '@/components/ui/social-icons';
 
 interface DashboardStats {
   totalCommits: {
@@ -38,12 +37,6 @@ interface DashboardStats {
     icon: string;
     color: string;
   };
-  activeProjects: {
-    value: string;
-    change: string;
-    icon: string;
-    color: string;
-  };
 }
 
 interface RecentActivity {
@@ -57,19 +50,10 @@ interface RecentActivity {
   };
 }
 
-interface ProfileData {
-  name?: string;
-  avatar?: string;
-  githubUsername?: string;
-  leetcodeUsername?: string;
-}
-
-
 const DashboardPage = React.memo(function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,10 +77,7 @@ const DashboardPage = React.memo(function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      const [statsResponse, profileResponse] = await Promise.all([
-        fetch('/api/dashboard/stats'),
-        fetch('/api/dashboard/profile')
-      ]);
+      const statsResponse = await fetch('/api/dashboard/stats');
 
       if (!statsResponse.ok) {
         throw new Error('Failed to fetch dashboard data');
@@ -104,12 +85,6 @@ const DashboardPage = React.memo(function DashboardPage() {
 
       const statsData = await statsResponse.json();
       
-      // Fetch profile data (name, avatar, etc.)
-      if (profileResponse.ok) {
-        const profileData = await profileResponse.json();
-        setProfile(profileData.profile);
-      }
-
       setStats(statsData.stats);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -196,17 +171,14 @@ const DashboardPage = React.memo(function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Active Bootcamp Banner */}
-      <ActiveBootcampBanner />
-      
       {/* Welcome Header */}
       <div className="bg-black/40 backdrop-blur-sm border border-[#0B874F]/30 rounded-lg p-6 text-center">
         <div className="w-24 h-24 mx-auto mb-4 bg-[#0B874F]/20 rounded-full flex items-center justify-center overflow-hidden">
-          {profile?.avatar ? (
-            <img src={profile.avatar} alt={profile.name || 'User'} className="w-full h-full object-cover" />
+          {user?.image ? (
+            <img src={user.image} alt={user.name || 'User'} className="w-full h-full object-cover" />
           ) : (
             <span className="text-[#0B874F] text-3xl font-bold">
-              {profile?.name?.charAt(0) || user?.name?.charAt(0) || user?.email?.charAt(0) || 'D'}
+              {user?.name?.charAt(0) || user?.email?.charAt(0) || 'D'}
             </span>
           )}
         </div>
@@ -216,8 +188,8 @@ const DashboardPage = React.memo(function DashboardPage() {
         <p className="text-gray-300 text-lg mb-2">
           Here's what's happening with your contributions.
         </p>
-        {profile?.githubUsername && (
-          <p className="text-gray-400">@{profile.githubUsername}</p>
+        {user?.githubUsername && (
+          <p className="text-gray-400">@{user.githubUsername}</p>
         )}
       </div>
 
@@ -254,18 +226,18 @@ const DashboardPage = React.memo(function DashboardPage() {
       {/* Heatmaps Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* GitHub Heatmap */}
-        {profile?.githubUsername && (
+        {user?.githubUsername && (
           <div className="bg-black/40 backdrop-blur-sm border border-[#0B874F]/30 rounded-lg p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center">
-              <Github className="w-5 h-5 mr-2 text-[#0B874F]" />
+              <GithubIcon className="w-5 h-5 mr-2 text-[#0B874F]" />
               GitHub Contributions
             </h2>
-            <GitHubHeatmap username={profile.githubUsername} />
+            <GitHubHeatmap username={user.githubUsername} />
           </div>
         )}
 
         {/* LeetCode Heatmap */}
-        {profile?.leetcodeUsername && (
+        {user?.leetcodeUsername && (
           <div className="bg-black/40 backdrop-blur-sm border border-[#0B874F]/30 rounded-lg p-6">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center">
               <svg className="w-5 h-5 mr-2 text-[#ffa116]" viewBox="0 0 24 24" fill="currentColor">
@@ -273,7 +245,7 @@ const DashboardPage = React.memo(function DashboardPage() {
               </svg>
               LeetCode Submissions
             </h2>
-            <LeetCodeHeatmap username={profile.leetcodeUsername} />
+            <LeetCodeHeatmap username={user.leetcodeUsername} />
           </div>
         )}
       </div>

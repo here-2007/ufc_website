@@ -1,57 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
-import { githubService } from '@/lib/github';
+import type { NextRequest } from 'next/server';
+import { requireSession } from '@/server/auth/session';
+import { prisma } from '@/server/db/prisma';
+import { json, withApiErrorHandling } from '@/server/http/api';
 
-export async function GET(request: NextRequest) {
-  try {
-    const token = request.cookies.get('auth-token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export const GET = withApiErrorHandling(async (request: NextRequest) => {
+  const session = await requireSession(request);
+  const stats = await prisma.gitHubStats.findUnique({
+    where: { userId: session.userId },
+    select: { languages: true, lastSynced: true },
+  });
+  let languages: Record<string, number> = {};
 
-    let userId: string;
+  if (typeof stats?.languages === 'string') {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
-      userId = decoded.userId;
-    } catch (error) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    // Get user's GitHub username
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { 
-        githubUsername: true
+      const parsed = JSON.parse(stats.languages);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        languages = Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, number] => (
+          typeof entry[1] === 'number'
+        )));
       }
-    });
-
-    if (!user?.githubUsername) {
-      return NextResponse.json({
-        success: true,
-        languages: {}
-      });
+    } catch {
+      languages = {};
     }
-
-    try {
-      // Use the existing getTopLanguagesFromReadmeStats method
-      const languages = await githubService.getTopLanguagesFromReadmeStats(user.githubUsername);
-      
-      return NextResponse.json({
-        success: true,
-        languages
-      });
-    } catch (error) {
-      console.error('Error fetching top languages:', error);
-      return NextResponse.json({
-        success: true,
-        languages: {}
-      });
-    }
-
-  } catch (error) {
-    console.error('Top languages fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch top languages' }, { status: 500 });
   }
-}
 
+  return json({ success: true, languages, lastSynced: stats?.lastSynced || null });
+});
